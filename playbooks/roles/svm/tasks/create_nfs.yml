@@ -1,0 +1,30 @@
+---
+
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    task_description: "{{ qtask_description | default('Enable NFS',true) }}"
+
+  ## Enable NFS
+- name: "{{ task_description }}"      
+  netapp.ontap.na_ontap_nfs:
+    state            : present
+    vserver          : "{{ svm_name }}"
+    showmount        : "{{ nfs_showmount          | default(omit) }}"
+    nfsv3            : "{{ nfs_nfsv3              | default(omit) }}"
+    nfsv3_fsid_change: "{{ nfs_nfsv3_fsid_change  | default(omit) }}"
+    nfsv4            : "{{ nfs_nfsv4              | default(omit) }}"
+    nfsv41           : "{{ nfs_nfsv41             | default(omit) }}"
+    nfsv41_acl       : "{{ nfs_nfsv41_acl         | default(omit) }}"
+    nfsv41_pnfs      : "{{ nfs_nfsv41_pnfs        | default(omit) }}"
+    tcp_max_xfer_size: "{{ nfs_tcp_max_xfer_size  | default(omit) }}"
+    nfsv4_id_domain  : "{{ nfs_nfsv4_id_domain    | default(omit) }}"
+    vstorage_state   : "{{ nfs_vstorage_state     | default(omit) }}"
+    service_state    : "started"
+    <<: *auth
+  register: create_nfs_serv
+  # ignore_errors: true

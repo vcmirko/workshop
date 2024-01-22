@@ -1,0 +1,9 @@
+---
+vars_external:
+  cluster:
+    name: bb8
+    management_ip: 172.16.56.1
+  nodes:
+  - management_ip: 172.16.56.2
+    name: bb8-01
+    ic_ip: 172.19.56.2

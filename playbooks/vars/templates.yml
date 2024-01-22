@@ -1,0 +1,3 @@
+vars_templates:
+  volume_cifs:
+    volume_security_style: ntfs

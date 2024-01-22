@@ -1,0 +1,35 @@
+---
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    task_description: "Decommission {{ volume_name }}"
+
+- name: "Unmount volume"
+  netapp.ontap.na_ontap_volume:
+    state: present
+    vserver:                 "{{ svm_name }}"    
+    name:                    "{{ volume_name }}"
+    junction_path:           ""
+    <<: *auth
+
+- name: "Set comment with timestamp on volume"
+  netapp.ontap.na_ontap_volume:
+    state: present
+    vserver:                 "{{ svm_name }}"    
+    name:                    "{{ volume_name }}"
+    comment:                 "delete {{ delete_date }}"
+    <<: *auth
+
+- name: "Rename volume"
+  netapp.ontap.na_ontap_volume:
+    state: present
+    vserver:                 "{{ svm_name }}"    
+    from_name:               "{{ volume_name }}"
+    name:                    "del_{{ volume_name }}"    
+    <<: *auth
+
+

@@ -1,0 +1,30 @@
+---
+    
+- name: Get destination info
+  set_fact:
+    cluster2_info: "{{ clusters | selectattr('name', 'equalto', item.peer_cluster) | first }}"
+
+- name: Set connection info
+  # we set the hostname to local cluster
+  set_fact:
+    netapp_hostname: "{{ cluster.management_ip }}"
+
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+
+- netapp.ontap.na_ontap_vserver_peer:
+    state                       : absent
+    peer_vserver                : "{{ item.peer_vserver     | default(omit) }}"
+    local_name_for_peer         : "{{ item.peer_vserver     | default(omit) }}"
+    vserver                     : "{{ svm_name     | default(omit) }}"
+    local_name_for_source       : "{{ svm_name     | default(omit) }}"
+    peer_cluster                : "{{ cluster2_info.name | default(omit) }}"
+    applications                : ['snapmirror']
+    peer_options:    
+      hostname                  : "{{ cluster2_info.management_ip | default(omit) }}"
+    <<: *auth

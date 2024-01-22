@@ -1,0 +1,13 @@
+---
+# unfortunately, ansible doesn't allow looping roles
+# so we have a local tasks "create_one" which includes facts & create of the volume role
+# hence we can create multiple volumes in a loop
+
+- name: Create multiple volumes
+  # debug:
+  #   msg: "{{ volume.name }}"
+  include_tasks: "create_one.yml" 
+  loop_control:
+    loop_var: volume
+    label: "Creating volume {{ volume.name }}"
+  loop: "{{ volumes }}"

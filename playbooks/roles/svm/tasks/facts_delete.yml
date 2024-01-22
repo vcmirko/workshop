@@ -1,0 +1,18 @@
+---
+## Naming facts
+- name: Merge Extravars
+  ansible.builtin.set_fact:
+    clusters: "{{ vars_external.clusters }}"
+    cluster: "{{ vars_external.cluster }}"
+    svm: "{{ vars_external.svm }}"
+
+- name: Set naming facts
+  ansible.builtin.set_fact:
+    # ansible_python_interpreter:   /usr/bin/python3
+    netapp_hostname:                "{{ cluster.management_ip }}"
+    netapp_username:                "{{ ontap_username }}"
+    netapp_password:                "{{ ontap_password }}"
+    svm_name:                       "{{ svm.name }}"
+    cluster_name:                   "{{ cluster.name }}"
+
+  delegate_to: localhost

@@ -1,0 +1,61 @@
+---
+
+# when connecting from the destination, we need to get the source info
+- name: Construct key
+  set_fact:
+    combined_key: "{{ svm_name + ':' + item.source_vserver }}"
+
+- name: Filter vserver_peer_info
+  set_fact:
+    selected_peer_info: "{{ sm_info.ontap_info.vserver_peer_info[combined_key] | default({}) }}"
+
+- name: Get source info
+  set_fact:
+    cluster1_info: "{{ clusters | selectattr('name', 'equalto', selected_peer_info.peer_cluster) | first }}"
+
+- name: Correct connection info
+  # we set the hostname back to current cluster, since we need to remove from the destination side
+  # and in a previous step, it was set to the other cluster
+  set_fact:
+    netapp_hostname: "{{ cluster.management_ip }}"
+
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    
+- name: Get source connection info
+  set_fact:
+    cluster1_name: "{{ cluster1_info.name }}"
+    svm1_name: "{{ item.source_vserver }}"
+    volume1_name: "{{ item.source_volume }}"
+    volume_name: "{{ item.destination_volume }}"
+
+- name: Modify policy SnapMirror (bug fix) - to allow snapmirror break
+  netapp.ontap.na_ontap_snapmirror:
+    state: present
+    policy                      : "MirrorAllSnapshots"
+    source_endpoint             : 
+      cluster                   : "{{ cluster1_name }}"
+      path                      : "{{ svm1_name + ':' + volume1_name }}"    
+    destination_endpoint        : 
+      cluster                   : "{{ cluster_name }}"
+      path                      : "{{ svm_name + ':' + volume_name }}"
+    <<: *auth
+
+- name: "Removing snapmirror {{ volume1_name }} -/-> {{ volume_name }}"  
+  netapp.ontap.na_ontap_snapmirror:
+    use_rest                    : always
+    state                       : absent
+    source_endpoint             : 
+      cluster                   : "{{ cluster1_name }}"
+      path                      : "{{ svm1_name + ':' + volume1_name }}"    
+    destination_endpoint        : 
+      cluster                   : "{{ cluster_name }}"
+      path                      : "{{ svm_name + ':' + volume_name }}"    
+    <<: *auth
+  retries: 5
+  delay: 60

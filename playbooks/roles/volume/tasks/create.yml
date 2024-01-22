@@ -1,0 +1,231 @@
+---
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    task_description: "Create/Modify Volume {{ volume_name }}"
+
+- name: "Find best aggregate"
+  get_best_aggregate:
+      <<: *auth
+      volume_name              : "{{ volume_name | default('') }}"
+      svm_name                 : "{{ svm_name | default('') }}"
+      debug                    : True
+      size_mb                  : "{{ volume_size | default(0) }}"
+      weight_volume_count      : 0
+      weight_used_pct          : 0
+      weight_provisioned_pct   : 0
+      weight_available_space   : 1
+      # threshold_volume_count   : 
+      # threshold_used_pct       : 
+      # threshold_provisioned_pct: 10000000
+      # threshold_available_space: 
+      # exclude_name_regex       : 
+      # include_name_regex       : 
+      # exclude_node_regex       : 
+      # include_node_regex       : 
+      # names_to_exclude         :
+      # nodes_to_exclude         : 
+  register: aggr_lookup
+  when: not volume_skip
+
+- name: Aggregate info
+  debug:
+    var: aggr_info
+  vars:
+    aggr_info:
+      found: "{{ aggr_lookup.aggregate.name }}"
+      # aggregates: "{{ aggr_lookup.all_aggregates }}" 
+      # candidates: "{{ aggr_lookup.valid_candidates }}"      
+      summary: "{{ aggr_lookup.summary }}"
+
+  when: not volume_skip
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_volume:
+    state: present
+    vserver:                 "{{ svm_name }}"    
+    name:                    "{{ volume_name }}"
+    is_infinite: False
+    aggregate_name:          "{{ aggr_lookup.aggregate.name | default(omit) }}"
+    size:                    "50"
+    size_unit:               "{{ volume_size_unit              | default(omit) }}"
+    space_guarantee:         "{{ volume_space_guarantee        | default(omit) }}"
+    percent_snapshot_space:  "{{ volume_percent_snapshot_space | default(omit) }}"
+    wait_for_completion:     "{{ volume_wait_for_completion    | default(omit) }}"
+    junction_path:           "{{ volume_junction_path          | default(omit) }}"
+    language:                "{{ volume_language               | default(omit) }}"
+    comment:                 "{{ volume_comment                | default(omit) }}"
+    type:                    "{{ volume_type                   | default(omit) }}"
+    # atime_update:            "{{ volume_atime_update           | default(omit) }}" # bad rest implementation
+    compression:             "{{ volume_compression            | default(omit) }}"
+    encrypt:                 "{{ volume_encrypt                | default(omit) }}"
+    group_id:                "{{ volume_group_id               | default(omit) }}"
+    inline_compression:      "{{ volume_inline_compression     | default(omit) }}"
+    size_change_threshold:   "{{ volume_size_change_threshold  | default(omit) }}"
+    unix_permissions:        "{{ volume_unix_permissions       | default(omit) }}"
+    user_id:                 "{{ volume_user_id                | default(omit) }}"
+    volume_security_style:   "{{ volume_security_style         | default(omit) }}"
+    snaplock:                "{{ volume_snaplock               | default(omit) }}"    
+    efficiency_policy:       "{{ efficiency_policy_name        | default(omit) }}"
+    export_policy:           "{{ export_policy_name            | default(omit) }}"
+    snapshot_policy:         "{{ snapshot_policy_name          | default(omit) }}"
+    tiering_policy:          "{{ tiering_policy_name           | default(omit) }}"
+    qos_policy_group:        "{{ qos_policy_group_name         | default(omit) }}"    
+    <<: *auth
+  register: created_volume
+  when: not volume_skip
+
+- set_fact:
+    task_description: "{{ qtask_description | default('Set Efficiency on FlexVol [' + volume_name + ']',true) }}"
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_volume_efficiency:
+    state: present
+    vserver:                   "{{ svm_name }}"    
+    volume_name:               "{{ volume_name }}"
+    enable_compression:        "{{ volume_efficiency_enable_compression        | default(omit) }}"
+    enable_data_compaction:    "{{ volume_efficiency_enable_data_compaction    | default(omit) }}"
+    enable_inline_compression: "{{ volume_efficiency_enable_inline_compression | default(omit) }}"
+    enable_inline_dedupe:      "{{ volume_efficiency_enable_inline_dedupe      | default(omit) }}"
+    policy:                    "{{ volume_efficiency_policy                    | default(omit) }}"
+    schedule :                 "{{ volume_efficiency_schedule                  | default(omit) }}"
+    <<: *auth
+  when: not volume_skip
+
+# autosize
+- set_fact:
+    task_description: "{{ qtask_description | default('Set Volume Autosize [' + volume_name + ']',true) }}"
+
+- name: "{{ task_description }}"      
+  netapp.ontap.na_ontap_volume_autosize:
+    volume                  : "{{ volume_name }}"
+    vserver                 : "{{ svm_name }}"
+    grow_threshold_percent  : "{{ volume_autosize_grow_threshold_percent   | default(omit) }}"
+    #increment_size         : "{{ volume_autosize_increment_size           | default(omit) }}"
+    maximum_size            : "100m"
+    minimum_size            : "30m"
+    mode                    : "{{ volume_autosize_mode                     | default(omit) }}"
+    shrink_threshold_percent: "{{ volume_autosize_shrink_threshold_percent | default(omit) }}"
+    <<                      : *auth
+  when: not volume_skip
+
+# snapshot autodelete
+- set_fact:
+    task_description: "{{ qtask_description | default('Set Volume Snapshot Autodelete [' + volume_name + ']',true) }}"
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_rest_cli:
+    command: 'snapshot/autodelete'
+    verb: 'PATCH'
+    params: 
+      volume: '{{ volume_name }}'
+      vserver: '{{ svm_name }}'
+    body: 
+      enabled:                 "{{ snapshot_autodelete_enabled                 | default(omit) }}"
+      commitment:              "{{ snapshot_autodelete_commitment              | default(omit) }}"
+      defer_delete:            "{{ snapshot_autodelete_defer_delete            | default(omit) }}"
+      delete_order:            "{{ snapshot_autodelete_delete_order            | default(omit) }}"
+      defer_delete_prefix:     "{{ snapshot_autodelete_defer_delete_prefix     | default(omit) }}"
+      target_free_space:       "{{ snapshot_autodelete_target_free_space       | default(omit) }}"
+      trigger:                 "{{ snapshot_autodelete_trigger                 | default(omit) }}"
+      destroy_list:            "{{ snapshot_autodelete_destroy_list            | default(omit) }}"
+    <<: *auth
+  when: snapshot_autodelete_enabled_defined and not volume_skip
+
+  ## set cli based options
+- set_fact:
+    task_description: "{{ qtask_description | default('Set space-mgmt-try-first [' + volume_name + ']',true) }}"
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_rest_cli:
+    command: 'volume'
+    verb: 'PATCH'
+    params: {'volume': '{{ volume_name }}','vserver': '{{ svm_name }}'}
+    body: {'space_mgmt_try_first': '{{ volume_space_mgmt_try_first }}'}
+    <<: *auth
+  when: (volume_space_mgmt_try_first | default(false)) and not volume_skip
+
+- set_fact:
+    task_description: "{{ qtask_description | default('Set read-alloc [' + volume_name + ']',true) }}"
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_rest_cli:
+    command: 'volume'
+    verb   : 'PATCH'
+    params : {'volume': '{{ volume_name }}','vserver': '{{ svm_name }}'}
+    body   : {'read_realloc': '{{ volume_read_realloc }}'}
+    <<     : *auth
+  when: (volume_read_realloc | default(false)) and not volume_skip
+
+- set_fact:
+    task_description: "{{ qtask_description | default('Set fractional-reserve [' + volume_name + ']',true) }}"
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_rest_cli:
+    command: 'volume'
+    verb   : 'PATCH'
+    params : {'volume': '{{ volume_name }}','vserver': '{{ svm_name }}'}
+    body   : {'fractional_reserve': '{{ volume_fractional_reserve }}'}
+    <<     : *auth
+  when: (volume_fractional_reserve | default(false)) and not volume_skip
+
+- set_fact:
+    task_description: "{{ qtask_description | default('Set atime-update [' + volume_name + ']',true) }}"
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_rest_cli:
+    command: 'volume'
+    verb   : 'PATCH'
+    params : {'volume': '{{ volume_name }}','vserver': '{{ svm_name }}'}
+    body   : {'atime_update': '{{ volume_atime_update }}'}
+    <<     : *auth
+  when: volume_atime_update_defined and not volume_skip
+
+# create qtrees
+- set_fact:
+    task_description: "{{ qtask_description | default('Create qtrees',true) }}"
+
+  ## Create qtrees
+- name: "{{ task_description }}"         
+  netapp.ontap.na_ontap_qtree:
+    state              : present
+    flexvol_name       : "{{ volume_name }}"
+    vserver            : "{{ svm_name }}"
+    name               : "{{ item.name }}"
+    export_policy      : "{{ item.export_policy       | default(omit) }}"
+    oplocks            : "{{ item.oplocks             | default(omit) }}"
+    security_style     : "{{ item.security_style      | default(omit) }}"
+    unix_permissions   : "{{ item.unix_permissions    | default(omit) }}"
+    unix_group         : "{{ item.unix_group          | default(omit) }}"
+    unix_user          : "{{ item.unix_user           | default(omit) }}"
+    wait_for_completion: "{{ item.wait_for_completion | default(omit) }}"
+    <<                 : *auth
+  loop: "{{ qtrees | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"  
+  when: (qtrees | default(false)) and not volume_skip    
+
+# create luns
+- set_fact:
+    task_description: "{{ qtask_description | default('Create luns',true) }}"
+
+  ## Create luns
+- name: "{{ task_description }}"         
+  netapp.ontap.na_ontap_lun:
+    state              : present
+    flexvol_name       : "{{ volume_name }}"
+    vserver            : "{{ svm_name }}"
+    name               : "{{ item.name }}"
+    size               : "{{ item.size                | default(omit) }}"
+    size_unit          : "{{ item.size_unit           | default(omit) }}"
+    space_reserve      : "{{ item.space_reserve       | default(omit) }}"
+    os_type            : "{{ item.os_type             | default(omit) }}"
+    <<                 : *auth
+  loop: "{{ luns | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"  
+  when: (luns | default(false)) and not volume_skip      

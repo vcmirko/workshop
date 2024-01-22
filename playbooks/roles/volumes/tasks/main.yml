@@ -1,0 +1,7 @@
+---
+#- include_vars:
+#    dir: 'vars'
+#    extensions: ['yml','yaml']
+
+- include_tasks: "{{ qtask }}.yml"
+

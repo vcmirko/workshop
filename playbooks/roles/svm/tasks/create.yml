@@ -1,0 +1,356 @@
+---
+
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    task_description: "{{ qtask_description | default('Create Svm [' + svm_name + ']',true) }}"
+
+  ## Create svm
+- name: "{{ task_description }}"          
+  netapp.ontap.na_ontap_svm:
+    state: present
+    name: "{{ svm_name }}"
+    allowed_protocols:          "{{ svm_allowed_protocols }}"
+    snapshot_policy:            "{{ svm_snapshot_policy }}"
+    language:                   "{{ svm_language | default(omit) }}"
+    comment:                    "{{ svm_comment | default(omit) }}"
+    max_volumes:                "{{ svm_max_volumes | default(omit) }}"
+    subtype:                    "{{ svm_subtype | default(omit) }}"
+    ipspace:                    "{{ ipspace_name | default('Default') }}"
+    <<: *auth
+  register: create_vserver
+  delegate_to: localhost
+
+  ## Set svm options
+- name: Set SVM Options
+  na_ontap_svm_options:
+    state: present
+    vserver: "{{ svm_name }}"
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    <<: *auth
+  loop: "{{ svm_options }}"
+  loop_control:
+    label: "{{ item.name + ' -> ' + item.value}}"
+
+  ## Create mgmt LIF
+- name: Create mgmt Network LIF
+  netapp.ontap.na_ontap_interface:
+    state: present
+    address: "{{ item.ip }}"
+    interface_name: "{{ item.name }}"
+    vserver: "{{ svm_name }}"
+    admin_status: "up"
+    # firewall_policy: "{{ item.firewall_policy | default('mgmt') }}"
+    home_node: "{{ item.node }}"
+    home_port: "{{ item.port }}"
+    is_auto_revert: true
+    ipspace       : "{{ ipspace_name }}"
+    # is_dns_update_enabled: "{{ item.dns_update_enabled }}"
+    netmask: "{{ item.netmask }}"
+    service_policy: "{{ item.service_policy }}"
+    <<: *auth
+  loop: "{{ lifs_list | selectattr('name','match','.*_mgmt$') | list }}"
+  loop_control:
+    label: "{{ item.name + ' -> ' + item.ip  }}"
+  # ignore_errors: true
+  delegate_to: localhost
+  register: create_mgmt_lif
+
+  ## Create route
+- name: create route
+  netapp.ontap.na_ontap_net_routes:
+    state: present
+    vserver: "{{ svm_name }}"
+    destination: "0.0.0.0/0"
+    gateway: "{{ item.gateway }}"
+    <<: *auth
+  loop: "{{ lifs_list | selectattr('name','match','.*_mgmt$') | list }}"
+  loop_control:
+    label: "{{ item.name + ' -> ' + item.gateway  }}"
+  delegate_to: localhost
+  register: create_default_route
+
+  ## Create dns
+- name: create dns
+  netapp.ontap.na_ontap_dns:
+    state: present
+    vserver: "{{ svm_name }}"
+    domains: "{{ dns.domains }}"
+    nameservers: "{{ dns.servers }}"
+    <<: *auth
+  when: dns is defined
+  delegate_to: localhost
+  register: create_dns
+
+  ## join domain
+- name: Create CIFS
+  netapp.ontap.na_ontap_cifs_server:
+    state: present
+    vserver: "{{ svm_name }}"
+    name: "{{ svm_name }}"
+    admin_user_name: "{{ ad_username }}"
+    admin_password: "{{ ad_password }}"
+    domain: "{{ ad_domain }}"
+    service_state: "started"
+    force: True
+    <<: *auth
+  loop: "{{ lifs_list | selectattr('name','match','.*ad_mgmt$') | list }}"
+  loop_control:
+    label: "{{ ad_domain + ' -> ' + svm_name  }}"
+  delegate_to: localhost
+  register: create_cifs_serv
+  # ignore_errors: true
+
+  ## Create FCP
+- name: Create FCP
+  netapp.ontap.na_ontap_fcp:
+    state: present
+    status: up
+    vserver: "{{ svm_name }}"
+    <<: *auth
+  delegate_to: localhost
+  when:
+    - allowed_protocols == "fcp"
+  register: create_fcp_serv
+  ignore_errors: true
+
+  ### Create NFS
+- name: Create NFS
+  netapp.ontap.na_ontap_nfs:
+    state: present
+    status: up
+    vserver: "{{ svm_name }}"
+    <<: *auth
+  delegate_to: localhost
+  when:
+    - allowed_protocols == "nfs"
+  register: create_nfs_serv
+  ignore_errors: true
+
+# - name: Enable SSL
+#   netapp.ontap.na_ontap_command:
+#     command: ['ssl modify -vserver {{ item.vserver }} -server-enabled true']
+#     privilege: 'admin'
+#     return_dict: false
+#     <<: *auth
+#   register: enable_ssl
+#   delegate_to: localhost
+#   when: expirationList is defined
+#   loop: "{{ expirationList | default([]) }}"
+
+
+### 04 DNS Config. Run if variables are set. Else, jump ###
+#- name: Create DNS Client
+#  na_ontap_dns:
+#    state: present
+#    vserver: "{{ svm_name }}"
+#    domains: "{{ domain }}"
+#    nameservers: "{{ nameserver }}"
+#    skip_validation: no #FIXED ALWAYS
+#    #tcp_port: The TCP port on which the key management server listens for incoming connections. (Default 5696)
+#    <<: *auth
+#  delegate_to: localhost
+
+
+### 04. Create SVM NFS access ###  El -v4-acl-preserved es un requerimiento????? Si lo es, hay que modificarlo por comandos !!!!!!!!!
+# condicional no ejecutar si FCP
+# - name: change svm nfs access status
+#   netapp.ontap.na_ontap_nfs:
+#     state: present
+#     #service_state: stopped
+#     vserver: "{{ svm_match | default(svm_name) }}"
+#     nfsv3: enabled
+#     nfsv4: enabled
+#     nfsv41: enabled
+# #    nfsv41_pnfs: enabled
+#     vstorage_state: enabled
+#     nfsv4_id_domain: "{{ svm_id_domain }}"
+# #    nfsv40_acl: enabled
+# #    nfsv41_acl: enabled
+#     <<: *auth
+#   ignore_errors: true
+#   when:
+#     - allowed_protocols == "nfs"
+#   register: chg_nfs_access
+#   delegate_to: localhost
+
+
+### 05. Create UNIX-groups  ###
+# condicional no ejecutar si FCP
+# - name: Create svm UNIX-groups
+#   netapp.ontap.na_ontap_command:
+#     command: ['unix-group', 'create', '-vserver', "{{ svm_name }}",'-name', "{{ item.name }}", '-id', "{{ item.id }}"]
+#     privilege: 'admin' #FIXED ALWAYS
+#     return_dict: true #FIXED ALWAYS
+#     <<: *auth
+#   loop: "{{ svm_unix_groups }}"
+#   when:
+#     - allowed_protocols == "nfs"
+#     - '"CH_" in ansible_local.physics.platform'
+#   register: create_unix_grp
+#   delegate_to: localhost
+
+
+### 06. Create UNIX-users  ###
+# condicional no ejecutar si FCP
+# - name: Create svm UNIX-users
+#   netapp.ontap.na_ontap_command:
+#     command: ['unix-user', 'create', '-vserver', "{{ svm_name }}",'-user', "{{ item.name }}", '-id', "{{ item.id }}", '-primary-gid', "{{ item.primary_gid }}", '-full_name', "{{ item.full_name }}"]
+#     privilege: 'admin' #FIXED ALWAYS
+#     return_dict: true #FIXED ALWAYS
+#     <<: *auth
+#   loop: "{{ svm_unix_users }}"
+#   when:
+#     - allowed_protocols == "nfs"
+#     - '"CH_" in ansible_local.physics.platform'
+#   register: create_unix_usr
+#   delegate_to: localhost
+
+
+### 07. Create svm export policies  ###
+# condicional no ejecutar si FCP
+# - name: Create Export Policy
+#   netapp.ontap.na_ontap_export_policy:
+#     state: present
+#     name: "{{ item.name }}"
+#     vserver: "{{ svm_match | default(svm_name) }}"
+#     <<: *auth
+#   loop: "{{ svm_export_policies }}"
+#   when:
+#     - allowed_protocols == "nfs"
+#     - item.name | regex_search('_{{ senv }}_')
+#   register: create_exp_pol
+#   delegate_to: localhost
+
+
+## 08. Create svm export rules  ###
+# - name: Create ExportPolicyRule
+#   netapp.ontap.na_ontap_export_policy_rule:
+#     state: present
+#     name: "{{ item.name }}"
+#     vserver: "{{ svm_match | default(svm_name) }}"
+#     client_match: "{{ item.client_match }}"
+# #    rule_index: "{{ item.rule_index }}"
+#     ro_rule: "{{ item.ro_rule }}"
+#     rw_rule: "{{ item.rw_rule }}"
+#     protocol: "{{ item.protocol }}"
+#     super_user_security: "{{ item.superuser }}"
+#     allow_suid: "{{ item.allow_suid }}"
+#     <<: *auth
+#   loop: "{{ svm_export_policies }}"
+#   register: create_export_policies_rules
+#   ignore_errors: true
+#   when:
+#     - allowed_protocols == "nfs"
+#     - item.name | regex_search('_{{ senv }}_')
+#   delegate_to: localhost
+
+
+### 08. Modify SVM Root Volume
+# - name: Modify SVM Root Volume
+#   netapp.ontap.na_ontap_volume:
+#     state: present
+#     vserver: "{{ svm_match | default(svm_name) }}"
+#     name: "{{ svm_root_volume }}"
+#     snapshot_policy: default
+#     export_policy: "{{ item.name | default('') }}" # Meter la primera de la lista!!!!!!!!!!!!!!!!!!!!!!!!!
+#     <<: *auth
+#   loop: "{{ svm_export_policies }}"
+#   when:
+#     - allowed_protocols == "nfs"
+#     - item.name | regex_search('_{{ senv }}_')
+#   register: mod_svm_root_vol
+#   delegate_to: localhost
+
+
+
+## 10. aQoS Policy Group
+##- name: aQoS Policy Group
+##  na_ontap_qos_adaptive_policy_group:
+##   state: present
+##    name:
+##    vserver:
+##    absolute_min_iops:
+##    expected_iops:
+##    peak_iops:
+##    peak_iops_allocation:
+##    <<: *auth
+##  delegate_to: localhost
+
+
+## 11. Crear esquema de ldap (Pendiente comando Pieter)
+
+
+## 12. Create LDAP Client Config
+## Pendiente tarea 10
+#- name: Create LDAP Client Configuration
+#  na_ontap_ldap_client:
+#    state: present
+#    name:
+#    vserver:
+#    base_dn:
+#    base_scope:
+#    bind_dn:
+#    bind_password:
+#    ldap_servers:
+#    min_bind_level:
+#    port:
+#    query_timeout:
+#    referral_enabled:
+#    schema:
+#    session_security:
+#    use_start_tls:
+#    <<: *auth
+#  delegate_to: localhost
+
+
+### 13. Create LDAP
+## Pendiente tarea 10a
+#- name: Create LDAP
+#  na_ontap_ldap:
+#    state: present
+#    name:
+#    vserver:
+#    skip_config_validation:
+#    <<: *auth
+#  delegate_to: localhost
+
+
+### 14. (Schedule)   ### SE HACE A NIVEL CLUSTER!!!!!!!!!!
+#- name: Create Job Schedule
+#  na_ontap_job_schedule:
+#    state: present
+#    name: "{{ item.name }}"
+#    job_minutes: "{{ item.job_minutes }}"
+#    job_hours: "{{ item.job_hours }}"
+#    job_days_of_week: "{{ item.job_days_of_week }}"
+#    <<: *auth
+#  with_items:
+#    - "{{ job_schedules }}"
+#  ignore_errors: true
+#  register: job_schedule
+#  delegate_to: localhost
+
+
+### 15. (Snapshot Policy)   ### ESTA SI A NIVEL SVM
+#Snapshot Policy
+# condicional no ejecutar si FCP
+#- name: Create Snapshot policy
+#  na_ontap_snapshot_policy:
+#    state: present
+#    name: "{{ item.name }}"
+#    schedule: "{{ item.schedule }}"
+#    vserver: "{{ svm_match | default(svm_name) }}"
+#    count: "{{ item.count }}"
+#    enabled: True
+#    <<: *auth
+#  with_items:
+#    - "{{ snapshot_policies }}"
+#  ignore_errors: true
+#  register: snapshot_policy
+#  delegate_to: localhost

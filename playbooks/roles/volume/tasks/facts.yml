@@ -1,0 +1,92 @@
+---
+## Naming facts
+- name: Merge Extravars
+  ansible.builtin.set_fact:
+    volume : "{{ vars_default.volume | default({}) | combine(vars_templates[vars_external.volume.template | default('')].volume | default({}), recursive=True) | combine(vars_external.volume | default({}),  recursive=True)  | combine(volume | default({}),  recursive=True) }}"
+    svm    : "{{ vars_external.svm  | default({}) | combine(volume.svm | default({}), recursive=True) }}"
+    cluster: "{{ vars_external.cluster  | default({}) | combine(volume.cluster | default({}), recursive=True) }}"
+
+- name: Set naming facts - Assign everything
+  ansible.builtin.set_fact:
+    # ansible_python_interpreter:   /usr/bin/python3
+    netapp_hostname                               : "{{ cluster.management_ip }}"
+    netapp_username                               : "{{ ontap_username }}"
+    netapp_password                               : "{{ ontap_password }}"
+    svm_name                                      : "{{ svm.name }}"
+    volume_name                                   : "{{ volume.name                                        | default(omit) }}"
+    volume_size_unit                              : "{{ volume.size_unit                                   | default(omit) }}"
+    # aggregate_name                                : "{{ volume.aggregate.name                              | default(omit) }}"
+    volume_wait_for_completion                    : "{{ volume.wait_for_completion                         | default(omit) }}"
+    volume_size                                   : "{{ volume.size                                        | default(omit) }}"
+    volume_space_guarantee                        : "{{ volume.space_guarantee                             | default(omit) }}"
+    volume_percent_snapshot_space                 : "{{ volume.percent_snapshot_space                      | default(omit) }}"
+    volume_comment                                : "{{ volume.comment                                     | default(omit) }}"
+    volume_read_realloc                           : "{{ volume.read_realloc                                | default(omit) }}"
+    volume_space_mgmt_try_first                   : "{{ volume.space_mgmt_try_first                        | default(omit) }}"
+    volume_fractional_reserve                     : "{{ volume.fractional_reserve                          | default(omit) }}"
+    volume_compression                            : "{{ volume.compression                                 | default(omit) }}"
+    volume_encrypt                                : "{{ volume.encrypt                                     | default(omit) }}"
+    volume_group_id                               : "{{ volume.group_id                                    | default(omit) }}"
+    volume_inline_compression                     : "{{ volume.inline_compression                          | default(omit) }}"
+    volume_junction_path                          : "{{ volume.junction_path                               | default(omit) }}"
+    volume_size_change_threshold                  : "{{ volume.size_change_threshold                       | default(omit) }}"
+    volume_unix_permissions                       : "{{ volume.unix_permissions                            | default(omit) }}"
+    volume_user_id                                : "{{ volume.user_id                                     | default(omit) }}"
+    volume_security_style                         : "{{ volume.volume_security_style                       | default(omit) }}"
+    volume_atime_update                           : "{{ volume.atime_update                                | default(omit) }}"
+    volume_language                               : "{{ volume.language                                    | default(omit) }}"
+    volume_snaplock                               : "{{ volume.snaplock                                    | default(omit) }}"  
+    volume_type                                   : "{{ volume.type                                        | default(omit) }}"  
+    volume_skip                                   : "{{ volume.skip                                        | default(false) }}"
+    export_policy_name                            : "{{ volume.export_policy.name                          | default(omit) }}"
+    snapshot_policy_name                          : "{{ volume.snapshot_policy.name                        | default(omit) }}"
+    efficiency_policy_name                        : "{{ volume.efficiency_policy.name                      | default(omit) }}"
+    tiering_policy_name                           : "{{ volume.tiering_policy.name                         | default(omit) }}"
+    volume_autosize_grow_threshold_percent        : "{{ volume.volume_autosize.grow_threshold_percent      | default(omit) }}"
+    volume_autosize_increment_size                : "{{ volume.volume_autosize.increment_size              | default(omit) }}"
+    volume_autosize_maximum_size                  : "{{ volume.volume_autosize.maximum_size                | default(omit) }}"
+    volume_autosize_minimum_size                  : "{{ volume.volume_autosize.minimum_size                | default(omit) }}"
+    volume_autosize_mode                          : "{{ volume.volume_autosize.mode                        | default(omit) }}"
+    volume_autosize_shrink_threshold_percent      : "{{ volume.volume_autosize.shrink_threshold_percent    | default(omit) }}"
+    snapshot_autodelete_enabled                   : "{{ volume.snapshot_autodelete.enabled                 | default(omit) }}"
+    snapshot_autodelete_commitment                : "{{ volume.snapshot_autodelete.commitment              | default(omit) }}"
+    snapshot_autodelete_defer_delete              : "{{ volume.snapshot_autodelete.defer_delete            | default(omit) }}"
+    snapshot_autodelete_delete_order              : "{{ volume.snapshot_autodelete.delete_order            | default(omit) }}"
+    snapshot_autodelete_defer_delete_prefix       : "{{ volume.snapshot_autodelete.defer_delete_prefix     | default(omit) }}"
+    snapshot_autodelete_target_free_space         : "{{ volume.snapshot_autodelete.target_free_space       | default(omit) }}"
+    snapshot_autodelete_trigger                   : "{{ volume.snapshot_autodelete.trigger                 | default(omit) }}"
+    snapshot_autodelete_destroy_list              : "{{ volume.snapshot_autodelete.destroy_list            | default(omit) }}"
+    volume_efficiency_enable_compression          : "{{ volume.volume_efficiency.enable_compression        | default(omit) }}"
+    volume_efficiency_enable_data_compaction      : "{{ volume.volume_efficiency.enable_data_compaction    | default(omit) }}"
+    volume_efficiency_enable_inline_compression   : "{{ volume.volume_efficiency.enable_inline_compression | default(omit) }}"
+    volume_efficiency_enable_inline_dedupe        : "{{ volume.volume_efficiency.enable_inline_dedupe      | default(omit) }}"
+    volume_efficiency_policy                      : "{{ volume.volume_efficiency.policy                    | default(omit) }}"
+    volume_efficiency_schedule                    : "{{ volume.volume_efficiency.schedule                  | default(omit) }}"
+    qos_policy_group_name                         : "{{ volume.qos_policy_group.name                       | default(omit) }}"
+    qos_policy_group_is_shared                    : "{{ volume.qos_policy_group.is_shared                  | default(omit) }}"
+    qos_policy_group_min_throughput               : "{{ volume.qos_policy_group.min_throughput             | default(omit) }}"
+    qos_policy_group_max_throughput               : "{{ volume.qos_policy_group.max_throughput             | default(omit) }}"
+    qtrees                                        : "{{ volume.qtrees                                      | default(omit) }}"
+    luns                                          : "{{ volume.luns                                        | default(omit) }}"
+
+### the below is a bit special
+# we need to know if a boolean is set.  
+# we need a second variable for this
+# generally when a string is not set, it's empty/none/undefined and we can use it as a flag to check
+# with a boolean this is different, if the boolean was intentially set to false, it should still be concidered as defined
+# and since we are in a loop, we need to reset the flag first and then evaluate
+
+- name: Set naming facts - Resetting flags for boolean definements
+  ansible.builtin.set_fact: 
+    volume_atime_update_defined : False
+    snapshot_autodelete_enabled_defined : False
+
+- name: Set naming facts - Atime update
+  ansible.builtin.set_fact: 
+    volume_atime_update_defined                : True
+  when: volume is defined and volume.atime_update is defined
+
+- name: Set naming facts - Snapshot autodelete
+  ansible.builtin.set_fact: 
+    snapshot_autodelete_enabled_defined        : True
+  when: volume is defined and volume.snapshot_autodelete is defined and volume.snapshot_autodelete.enabled is defined

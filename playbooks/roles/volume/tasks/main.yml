@@ -1,0 +1,4 @@
+---
+- debug: var=qtask
+- include_tasks: "{{ qtask }}.yml"
+

@@ -1,0 +1,16 @@
+---
+- name: "Day 1 - Create Svm"
+  hosts: localhost
+  become: false
+  gather_facts: false
+  vars_files:
+    - "vars/credentials.yml"
+    - "vars/defaults.yml"
+    - "vars/overrides.yml"
+
+  roles:
+    - { role: facts, qtask: credentials }  
+    - { role: volume, qtask: facts }
+    - { role: volume, qtask: create }
+    - { role: aiqum, qtask: facts }
+    - { role: aiqum, qtask: rediscover }      

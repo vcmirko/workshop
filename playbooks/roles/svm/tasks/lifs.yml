@@ -1,0 +1,55 @@
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+
+## 10- Create data LIFs
+- name: Create FCP Data Network LIF
+  netapp.ontap.na_ontap_interface:
+    state: present
+    interface_name: "{{ item.name }}"
+    vserver: "{{ svm_match | default(svm_name) }}"
+    admin_status: "up"
+    home_node: "{{ item.node }}"
+    home_port: "{{ item.port }}"
+    # is_auto_revert: "{{ item.auto_revert }}"
+    protocols: "fcp"
+    role: "data"
+    <<: *auth
+  loop: "{{ lifs_list | selectattr('name','match','.*fc.*') | list }}"
+  loop_control:
+    label: "{{ item.node + ' : ' + item.name + ' -> ' + item.port  }}"
+  ignore_errors: true
+  delegate_to: localhost
+  register: create_fcp_lif
+  when:
+    - allowed_protocols == "fcp"
+
+## 11- Create data LIFs
+- name: Create NFS Data Network LIF
+  netapp.ontap.na_ontap_interface:
+    state: present
+    address: "{{ item.ip }}"
+    interface_name: "{{ item.name }}"
+    vserver: "{{ svm_match | default(svm_name) }}"
+    admin_status: "up"
+    firewall_policy: "{{ item.firewall_policy }}"
+    home_node: "{{ item.node }}"
+    home_port: "{{ item.port }}"
+    is_auto_revert: true
+    # is_dns_update_enabled: "{{ item.dns_update_enabled }}"
+    netmask: "{{ item.netmask }}"
+    protocols: "cifs,nfs"
+    role: "{{ item.role }}"
+    <<: *auth
+  loop: "{{ lifs_list | selectattr('name','match','.*nfs.*') | list }}"
+  loop_control:
+    label: "{{ item.node + ' : ' + item.name + ' -> ' + item.port  }}"
+  ignore_errors: true
+  delegate_to: localhost
+  register: create_nfs_lif
+  when:
+    - allowed_protocols == "nfs"

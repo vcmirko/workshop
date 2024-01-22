@@ -1,0 +1,20 @@
+---
+vars_external:
+  cluster:
+    name: bb8
+    management_ip: 172.16.56.1
+  svm:
+    name: svm1
+    comment: "Created by ansible"
+    lifs:
+    - name: svm1_mgmt
+      ip: 172.16.57.1
+      netmask: 255.255.0.0
+      service_policy: default-management
+      node: bb8-01
+      port: e0d-16
+      gateway: 172.16.0.1
+  cifs:
+    name: svm1_cifs
+  
+

@@ -1,0 +1,27 @@
+---
+
+- set_fact:
+    auth: &auth
+      hostname      : "{{ netapp_hostname }}"
+      username      : "{{ netapp_username }}"
+      password      : "{{ netapp_password }}"
+      https         : true
+      validate_certs: false
+    task_description: "{{ qtask_description | default('Enable CIFS',true) }}"
+
+  ## Enable Cifs
+- name: "{{ task_description }}"      
+  netapp.ontap.na_ontap_cifs_server:
+    state          : present
+    vserver        : "{{ svm_name }}"
+    name           : "{{ cifs_name }}"
+    admin_user_name: "{{ ad_username }}"
+    admin_password : "{{ ad_password }}"
+    domain         : "{{ cifs_domain }}"
+    ou             : "{{ cifs_ou }}"
+    service_state  : "started"
+    force          : True
+    <<             : *auth
+  register: create_cifs_serv
+  ignore_errors: true
+

@@ -1,0 +1,22 @@
+---
+
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    task_description: "{{ qtask_description | default('Create Cifs Share ['+cifs_share_name | default('none')+']',true) }}"
+
+  ## Create Cifs Share
+- name: "{{ task_description }}"        
+  netapp.ontap.na_ontap_cifs:
+    state: present
+    share_name: "{{ cifs_share_name }}"
+    path: "{{ cifs_share_path }}"
+    vserver: "{{ svm_name }}"
+    comment: "{{ cifs_share_comment | default(omit) }}"
+    use_rest: always
+    <<: *auth
+  when: cifs_share_name | default(false)

@@ -1,0 +1,13 @@
+---
+# unfortunately, ansible doesn't allow looping roles
+# so we have a local tasks "delete_one" which includes facts & delete of the volume role
+# hence we can delete multiple volumes in a loop
+
+- name: Delete multiple volumes
+  # debug:
+  #   msg: "{{ volume.name }}"
+  include_tasks: "delete_one.yml" 
+  loop_control:
+    loop_var: volume
+    label: "Delete volume {{ volume.name }}"
+  loop: "{{ volumes }}"

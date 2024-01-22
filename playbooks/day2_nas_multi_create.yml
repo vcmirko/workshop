@@ -1,0 +1,16 @@
+---
+- name: "Day 2 - Create Nas"
+  hosts: localhost
+  become: false
+  gather_facts: false
+  vars_files:
+    - "vars/credentials.yml"
+    - "vars/defaults.yml"
+    - "vars/overrides.yml"
+
+  roles:
+    - { role: facts, qtask: credentials }  
+    - { role: volumes, qtask: facts }
+    - { role: volumes, qtask: create }
+    - { role: aiqum, qtask: facts }
+    - { role: aiqum, qtask: rediscover }      

@@ -1,0 +1,26 @@
+---
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    task_description: "Deleting {{ volume_name }}"
+
+- name: "Unmount volume"
+  netapp.ontap.na_ontap_volume:
+    state: present
+    vserver:                 "{{ svm_name }}"    
+    name:                    "{{ volume_name }}"
+    junction_path:           ""
+    <<: *auth
+
+- name: "Delete volume"
+  netapp.ontap.na_ontap_volume:
+    state: absent
+    vserver:                 "{{ svm_name }}"    
+    name:                    "{{ volume_name }}"
+    <<: *auth
+
+

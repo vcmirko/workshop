@@ -1,0 +1,21 @@
+---
+centos:
+  hosts:
+    172.16.50.1:
+    172.16.50.2:
+
+ubuntu:
+  hosts:
+    172.16.50.4:
+
+linux:
+  children:
+    ubuntu:
+    centos:
+
+all:
+  children:
+    linux:
+  vars:
+    ansible_ssh_user: root
+    ansible_ssh_password: Netapp12

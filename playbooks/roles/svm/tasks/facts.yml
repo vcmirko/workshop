@@ -1,0 +1,53 @@
+---
+## Naming facts
+- name: Merge Extravars
+  ansible.builtin.set_fact:
+    nfs: "{{ (vars_default.nfs | default({})) | combine(vars_external.nfs | default({}) ,  recursive=True) | combine(vars_override.nfs | default({}) ,  recursive=True) }}"
+    cifs: "{{ (vars_default.cifs | default({})) | combine(vars_external.cifs | default({}) ,  recursive=True) | combine(vars_override.cifs | default({}) ,  recursive=True) }}"
+    dns: "{{ (vars_default.dns | default({})) | combine(vars_default.templates[vars_external.template | default('')].dns | default({}), recursive=True) | combine(vars_external.dns | default({}) ,  recursive=True) | combine(vars_override.dns | default({}) ,  recursive=True) }}"
+    cluster: "{{ vars_external.cluster }}"
+    svm: "{{ vars_default.svm | default({}) | combine(vars_default.templates[vars_external.template | default('')].svm | default({}), recursive=True) | combine(vars_external.svm | default({}),  recursive=True) }}"
+    ipspace: "{{ vars_default.ipspace | default({}) | combine(vars_external.ipspace | default({}),  recursive=True) }}"
+    broadcast_domain: "{{ vars_default.broadcast_domain | default({}) | combine(vars_external.broadcast_domain | default({}), recursive=True) }}"
+
+# - name: debug svm after merge
+#   debug:
+#     var: svm
+
+- name: Set naming facts
+  ansible.builtin.set_fact:
+    # ansible_python_interpreter:   /usr/bin/python3
+    netapp_hostname:                "{{ cluster.management_ip }}"
+    netapp_username:                "{{ ontap_username }}"
+    netapp_password:                "{{ ontap_password }}"
+    svm_name:                       "{{ svm.name }}"
+    svm_allowed_protocols:          "{{ svm.allowed_protocols   | default(omit) }}"
+    svm_snapshot_policy:            "{{ svm.snapshot_policy     | default(omit) }}"
+    svm_options:                    "{{ svm.svm_options         | default([]) | list }}"
+    svm_language:                   "{{ svm.language            | default(omit) }}"
+    svm_comment:                    "{{ svm.comment             | default(omit) }}"
+    svm_max_volumes:                "{{ svm.max_volumes         | default(omit) }}"
+    svm_subtype:                    "{{ svm.subtype             | default(omit) }}"
+    ipspace_name:                   "{{ ipspace.name            | default('Default') }}"
+    lifs_list:                      "{{ svm.lifs                | default([]) | list }}"
+    dns_domains:                    "{{ dns.domains             | default(omit) }}"
+    dns_servers:                    "{{ dns.servers             | default(omit) }}" 
+    dns_skip_validation:            "{{ dns.skip_validation     | default(omit) }}"
+    cifs_domain:                    "{{ cifs.domain             | default(omit) }}"
+    cifs_name:                      "{{ cifs.name               | default(omit) }}"
+    cifs_ou:                        "{{ cifs.ou                 | default(omit) }}"
+    nfs_showmount:                  "{{ nfs.showmount           | default(omit) }}"
+    nfs_nfsv3:                      "{{ nfs.nfsv3               | default(omit) }}"
+    nfs_nfsv3_fsid_change:          "{{ nfs.nfsv3_fsid_change   | default(omit) }}"
+    nfs_nfsv4:                      "{{ nfs.nfsv4               | default(omit) }}"
+    nfs_nfsv40_acl:                 "{{ nfs.nfsv40_acl          | default(omit) }}"
+    nfs_nfsv41:                     "{{ nfs.nfsv41              | default(omit) }}"
+    nfs_nfsv41_pnfs:                "{{ nfs.nfsv41_pnfs         | default(omit) }}"
+    nfs_nfsv41_acl:                 "{{ nfs.nfsv41_acl          | default(omit) }}"
+    nfs_tcp_max_xfer_size:          "{{ nfs.tcp_max_xfer_size   | default(omit) }}"
+    nfs_nfsv4_id_domain:            "{{ nfs.nfsv4_id_domain     | default(omit) }}"    
+    nfs_vstorage_state:             "{{ nfs.vstorage_state      | default(omit) }}" 
+    broadcast_domain_name :         "{{ broadcast_domain.name   | default(omit) }}"   
+  delegate_to: localhost
+
+- debug: var=cifs_ou

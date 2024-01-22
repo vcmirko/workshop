@@ -1,0 +1,10 @@
+---
+## Naming facts
+- name: Merge Extravars
+  ansible.builtin.set_fact:
+    volumes : "{{ vars_external.volumes | default([]) }}"
+    svm    : "{{ vars_external.svm }}"
+    cluster: "{{ vars_external.cluster }}"
+    delete_date: "{{ vars_external.delete_date | default('') }}"
+
+- debug: var=volumes

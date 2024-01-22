@@ -1,0 +1,12 @@
+ssh-keyscan -H 172.16.50.4 >> ~/.ssh/known_hosts
+
+ansible.cfg
+[defaults]
+host_key_checking = False
+
+# generate keypair on ansible server
+ssh-keygen -t rsa
+
+scp ~/.ssh/id_rsa.pub root@172.16.50.1:~/.ssh/authorized_keys
+
+ssh root@172.16.50.1

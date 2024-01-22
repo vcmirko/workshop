@@ -1,0 +1,13 @@
+---
+# unfortunately, ansible doesn't allow looping roles
+# so we have a local tasks "decom_one" which includes facts & decom of the volume role
+# hence we can decom multiple volumes in a loop
+
+- name: Decom multiple volumes
+  # debug:
+  #   msg: "{{ volume.name }}"
+  include_tasks: "decom_one.yml" 
+  loop_control:
+    loop_var: volume
+    label: "Decom volume {{ volume.name }}"
+  loop: "{{ volumes }}"

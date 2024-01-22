@@ -1,0 +1,100 @@
+---
+
+- set_fact:
+    auth: &auth
+      hostname      : "{{ netapp_hostname }}"
+      username      : "{{ netapp_username }}"
+      password      : "{{ netapp_password }}"
+      https         : true
+      validate_certs: false
+    task_description: "{{ qtask_description | default('Create Svm [' + svm_name + ']',true) }}"
+
+- name: "Get aggr list"
+  netapp.ontap.na_ontap_rest_info:
+    gather_subset:
+      - "storage/aggregates"
+    use_python_keys:          true
+    <<: *auth
+  register: aggr_info
+
+  ## Create svm
+- name: "{{ task_description }}"      
+  netapp.ontap.na_ontap_svm:
+    state            : present
+    name             : "{{ svm_name }}"
+    allowed_protocols: "{{ svm_allowed_protocols }}"
+    snapshot_policy  : "{{ svm_snapshot_policy }}"
+    language         : "{{ svm_language    | default(omit) }}"
+    comment          : "{{ svm_comment     | default(omit) }}"
+    max_volumes      : "{{ svm_max_volumes | default(omit) }}"
+    subtype          : "{{ svm_subtype     | default(omit) }}"
+    ipspace          : "{{ ipspace_name    | default('Default') }}"
+    aggr_list        : "{{ aggr_info.ontap_info.storage_aggregates.records | map(attribute='name') | flatten }}"
+    <<               : *auth
+  register: create_vserver
+  delegate_to: localhost
+
+  ## Set svm options
+- name: Set SVM Options
+  na_ontap_svm_options:
+    state  : present
+    vserver: "{{ svm_name }}"
+    name   : "{{ item.name }}"
+    value  : "{{ item.value }}"
+    <<     : *auth
+  loop: "{{ svm_options }}"
+  loop_control:
+    label: "{{ item.name + ' -> ' + item.value}}"
+
+  ## Create mgmt LIF
+- name: Create mgmt Network LIF
+  netapp.ontap.na_ontap_interface:
+      state                : present
+      address              : "{{ item.ip }}"
+      interface_name       : "{{ item.name }}"
+      vserver              : "{{ svm_name }}"
+      admin_status         : "up"
+    # firewall_policy      : "{{ item.firewall_policy | default('mgmt') }}"
+      home_node            : "{{ item.node }}"
+    #  home_port            : "{{ item.port }}"
+      is_auto_revert       : true
+    # is_dns_update_enabled: "{{ item.dns_update_enabled }}"
+      netmask              : "{{ item.netmask }}"
+      service_policy       : "{{ item.service_policy }}"
+      ipspace              : "{{ ipspace_name }}"
+      broadcast_domain     : "{{ broadcast_domain_name | default(omit) }}"
+      <<                   : *auth
+  loop: "{{ lifs_list | selectattr('name','match','.*_mgmt$') | list }}"
+  loop_control:
+    label: "{{ item.name + ' -> ' + item.ip  }}"
+  # ignore_errors: true
+  delegate_to: localhost
+  register: create_mgmt_lif
+
+  ## Create route
+- name: create route
+  netapp.ontap.na_ontap_net_routes:
+    state      : present
+    vserver    : "{{ svm_name }}"
+    destination: "0.0.0.0/0"
+    gateway    : "{{ item.gateway }}"
+    <<         : *auth
+  loop: "{{ lifs_list | selectattr('name','match','.*_mgmt$') | list }}"
+  loop_control:
+    label: "{{ item.name + ' -> ' + item.gateway  }}"
+  delegate_to: localhost
+  register: create_default_route
+  when : item.gateway | default(false)
+
+  ## Create dns
+- name: create dns
+  netapp.ontap.na_ontap_dns:
+    state          : present
+    vserver        : "{{ svm_name }}"
+    domains        : "{{ dns_domains }}"
+    nameservers    : "{{ dns_servers }}"
+    skip_validation: "{{ dns_skip_validation }}"
+    <<             : *auth
+  when: dns is defined
+  delegate_to: localhost
+  register: create_dns

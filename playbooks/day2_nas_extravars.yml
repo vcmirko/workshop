@@ -1,0 +1,18 @@
+---
+vars_external:
+  cluster: &cluster
+    name: bb8
+    management_ip: 172.16.56.1
+  svm: &svm
+    name: svm1
+  volume:
+    name: vol1
+    size: 50
+    size_unit: mb
+    junction_path: /vol1
+    # svm: 
+    #   <<: *svm
+    # cluster: 
+    #   <<: *cluster
+  
+

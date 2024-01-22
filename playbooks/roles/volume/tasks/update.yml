@@ -1,0 +1,46 @@
+---
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    task_description: "{{ qtask_description | default('Modify FlexVol [' + volume_name + ']',true) }}"
+
+# - debug: msg="{{ export_policy_name }}"
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_volume:
+    state: present
+    vserver:                 "{{ svm_name }}"    
+    name:                    "{{ volume_name }}"
+    is_infinite: False
+    # aggregate_name:          "{{ aggregate_name                | default(omit) }}"
+    size:                    "{{ volume_size                   | default(omit) }}"
+    size_unit:               "{{ volume_size_unit              | default(omit) }}"
+    space_guarantee:         "{{ volume_space_guarantee        | default(omit) }}"
+    percent_snapshot_space:  "{{ volume_percent_snapshot_space | default(omit) }}"
+    wait_for_completion:     "{{ volume_wait_for_completion    | default(omit) }}"
+    junction_path:           "{{ volume_junction_path          | default(omit) }}"
+    language:                "{{ volume_language               | default(omit) }}"
+    comment:                 "{{ volume_comment                | default(omit) }}"
+    type:                    "{{ volume_type                   | default(omit) }}"
+    # atime_update:            "{{ volume_atime_update           | default(omit) }}" # bad rest implementation
+    compression:             "{{ volume_compression            | default(omit) }}"
+    encrypt:                 "{{ volume_encrypt                | default(omit) }}"
+    group_id:                "{{ volume_group_id               | default(omit) }}"
+    inline_compression:      "{{ volume_inline_compression     | default(omit) }}"
+    size_change_threshold:   "{{ volume_size_change_threshold  | default(omit) }}"
+    unix_permissions:        "{{ volume_unix_permissions       | default(omit) }}"
+    user_id:                 "{{ volume_user_id                | default(omit) }}"
+    volume_security_style:   "{{ volume_security_style         | default(omit) }}"
+    snaplock:                "{{ volume_snaplock               | default(omit) }}"    
+    efficiency_policy:       "{{ efficiency_policy_name        | default(omit) }}"
+    export_policy:           "{{ export_policy_name            | default(omit) }}"
+    snapshot_policy:         "{{ snapshot_policy_name          | default(omit) }}"
+    tiering_policy:          "{{ tiering_policy_name           | default(omit) }}"
+    qos_policy_group:        "{{ qos_policy_group_name         | default(omit) }}"    
+    <<: *auth
+  register: created_volume
+  when: not volume_skip

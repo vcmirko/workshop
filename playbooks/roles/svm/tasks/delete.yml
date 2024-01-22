@@ -1,0 +1,242 @@
+---
+
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+
+- name: Get snapmirror relations
+  netapp.ontap.na_ontap_info:
+    gather_subset: 
+    - snapmirror_destination_info
+    - snapmirror_info
+    - vserver_peer_info
+    vserver: "{{ svm_name }}"
+    <<: *auth
+  register: sm_info
+
+# - debug: var=sm_info.ontap_info
+
+- name: Remove Outgoing snapmirrors
+  include_tasks: "delete_snapmirror_from_source.yml"
+  loop: "{{ sm_info.ontap_info.snapmirror_destination_info.values() | list }}"
+  loop_control:
+    loop_var: item
+  when:
+    - sm_info.ontap_info.snapmirror_destination_info!=None   
+
+- name: Remove Incoming snapmirrors
+  include_tasks: "delete_snapmirror_from_destination.yml"
+  loop: "{{ sm_info.ontap_info.snapmirror_info.values() | list }}"
+  loop_control:
+    loop_var: item    
+  when:
+    - sm_info.ontap_info.snapmirror_info!=None
+
+- name: Remove vserver peers
+  include_tasks: "delete_vserver_peer.yml"
+  loop: "{{ sm_info.ontap_info.vserver_peer_info.values() | list }}"
+  loop_control:
+    loop_var: item    
+  when:
+    - sm_info.ontap_info.vserver_peer_info!=None 
+
+- name: Get all LUN mappings 
+  netapp.ontap.na_ontap_rest_info:
+    gather_subset:
+      - "protocols/san/lun-maps"
+    use_python_keys:            true
+    parameters: 
+      svm.name: "{{ svm_name }}"
+    <<: *auth
+  register: lun_map_info
+
+- name: Remove all LUN mappings 
+  netapp.ontap.na_ontap_lun_map:
+    state:                    absent
+    vserver:                  "{{ item.svm.name }}"
+    initiator_group_name:     "{{ item.igroup.name }}"
+    path:                     "{{ item.lun.name }}"
+    <<: *auth
+  when:
+    - lun_map_info.ontap_info.protocols_san_lun_maps.num_records|int > 0
+    - item.svm.name is defined
+  loop:
+    "{{ lun_map_info.ontap_info.protocols_san_lun_maps.records }}"
+
+- name: Get all LUNs 
+  netapp.ontap.na_ontap_rest_info:
+    gather_subset:
+      - "storage/luns"
+    fields:
+      - "svm"
+    use_python_keys:          true
+    parameters: 
+      svm.name: "{{ svm_name }}"    
+    <<: *auth
+  register: lun_info
+
+- name: Remove all LUNs
+  netapp.ontap.na_ontap_lun:
+    state:                    absent
+    vserver:                  "{{ item.svm.name }}"
+    name:                     "{{ item.name.split('/')[-1] }}"
+    flexvol_name:             "{{ item.name.split('/')[-2] }}"
+    <<: *auth
+  when:
+    - lun_info.ontap_info.storage_luns.num_records|int > 0
+    - item.name is defined
+  loop:
+    "{{ lun_info.ontap_info.storage_luns.records }}"
+
+- name: Get all iGroups
+  netapp.ontap.na_ontap_rest_info:
+    gather_subset:
+      - "protocols/san/igroups"
+    use_python_keys:          true
+    parameters: 
+      svm.name: "{{ svm_name }}"    
+    <<: *auth
+  register: igroup_info
+
+- name: Remove all iGroups
+  netapp.ontap.na_ontap_igroup:
+    state:                    absent
+    vserver:                  "{{ item.svm.name }}"
+    name:                     "{{ item.name }}"
+    <<: *auth
+  when:
+    - igroup_info.ontap_info.protocols_san_igroups.num_records|int > 0
+    - item.name is defined
+  loop:
+    "{{ igroup_info.ontap_info.protocols_san_igroups.records }}"
+
+- name: Get all non-root volumes 
+  netapp.ontap.na_ontap_rest_info:
+    gather_subset:
+      - "storage/volumes"
+    fields:
+      - "svm"
+    parameters:
+      is_svm_root:            false
+    use_python_keys:          true
+    owning_resource: 
+      svm_name: "{{ svm_name }}"
+    <<: *auth
+  register: vol_info
+
+- name: Delete all volumes 
+  netapp.ontap.na_ontap_volume:
+    state:                    absent
+    name:                     "{{ item.name }}"
+    vserver:                  "{{ item.svm.name }}" 
+    wait_for_completion:      true
+    <<: *auth
+  when:
+    - vol_info.ontap_info.storage_volumes.num_records|int > 0
+    - item.name is defined
+  loop:
+    "{{ vol_info.ontap_info.storage_volumes.records }}"
+
+- name: Get all SVM CIFS servers
+  netapp.ontap.na_ontap_rest_info:
+    gather_subset:
+      - "protocols/cifs/services"
+    fields:
+      - "*"
+    use_python_keys:          true
+    parameters: 
+      svm.name: "{{ svm_name }}"
+    <<: *auth
+  register: cifs_service_info
+
+- name: Delete SVM CIFS server
+  netapp.ontap.na_ontap_cifs_server:
+    state:                    absent
+    name:                     "{{ item.name }}"                  
+    vserver:                  "{{ item.svm.name }}"
+    domain:                   "{{ item.ad_domain.fqdn }}"
+    ou:                       "{{ item.ad_domain.organizational_unit }}"
+    admin_user_name:          "{{ ad_username }}"
+    admin_password:           "{{ ad_password }}"
+    force: true
+    <<: *auth
+  loop:
+    "{{ cifs_service_info.ontap_info.protocols_cifs_services.records }}"
+  loop_control:
+    label: "{{ item.svm.name }} - {{ item.name }}"
+  when:
+  - cifs_service_info.ontap_info.protocols_cifs_services.num_records|int > 0
+  - item.name is defined
+
+- name: Get all SVM interfaces 
+  netapp.ontap.na_ontap_rest_info:
+    gather_subset:
+    - "network/ip/interfaces"
+    fields:
+      - "svm"
+      - "scope"
+      - "service_policy"
+    parameters:
+      scope:                  "svm"
+      svm.name: "{{ svm_name }}"      
+    use_python_keys:          true
+    <<: *auth
+  register: svm_ip_int_info
+
+- name: Delete all SVM interfaces 
+  netapp.ontap.na_ontap_interface:
+    state:                    absent
+    interface_name:           "{{ item.name }}"
+    vserver:                  "{{ item.svm.name }}"
+    <<: *auth
+  loop:
+    "{{ svm_ip_int_info.ontap_info.network_ip_interfaces.records }}"
+  loop_control:
+    label: "{{ item.svm.name }} - {{ item.name }}"
+  when:
+    - svm_ip_int_info.ontap_info.network_ip_interfaces.num_records|int > 0
+    - item.name is defined
+    - item.scope == "svm"
+   
+
+- name: Get all snapmirror policies
+  netapp.ontap.na_ontap_rest_info:
+    gather_subset:
+    - "snapmirror/policies"
+    fields:
+      - "name"
+      - "scope"
+      - "svm"
+    parameters:
+      scope:                  "svm"
+      svm.name: "{{ svm_name }}"
+    use_python_keys:          true
+    <<: *auth
+  register: snapmirror_policy_info
+
+- name: Delete all snapmirror policies    
+  netapp.ontap.na_ontap_snapmirror_policy:
+    state            : absent
+    vserver          : "{{ item.svm.name }}"
+    name             : "{{ item.name }}"
+    <<              : *auth
+  loop:
+    "{{ snapmirror_policy_info.ontap_info.snapmirror_policies.records }}"
+  loop_control:
+    label: "{{ item.svm.name }} - {{ item.name }}"
+  when:
+    - snapmirror_policy_info.ontap_info.snapmirror_policies.num_records|int > 0
+    - item.name is defined
+    - item.scope == "svm"
+
+- name: Delete svm
+  netapp.ontap.na_ontap_svm:
+    state:                    absent
+    name:                     "{{ svm_name }}"
+    <<: *auth
+  retries: 3
+  delay: 10

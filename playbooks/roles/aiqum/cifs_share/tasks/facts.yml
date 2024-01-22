@@ -1,0 +1,25 @@
+---
+## Naming facts
+- name: Merge Extravars
+  ansible.builtin.set_fact:
+    cifs_share: "{{ vars_default.cifs_share | default({}) | combine(vars_external.cifs_share | default({}),  recursive=True) }}"
+    svm: "{{ vars_external.svm }}"
+    cluster: "{{ vars_external.cluster  }}"
+
+# - name: debug cifs share after merge
+#   debug:
+#     var: cifs_share
+
+
+- name: Set naming facts
+  ansible.builtin.set_fact:
+    # ansible_python_interpreter:   /usr/bin/python3
+    netapp_hostname:                "{{ cluster.management_ip }}"
+    netapp_username:                "{{ ontap_username }}"
+    netapp_password:                "{{ ontap_password }}"
+    svm_name:                       "{{ svm.name }}"
+    cifs_share_path:                "{{ cifs_share.path    | default(omit) }}"
+    cifs_share_name:                "{{ cifs_share.name    | default(omit) }}"
+    cifs_share_comment:             "{{ cifs_share.comment | default(omit) }}"
+
+  delegate_to: localhost

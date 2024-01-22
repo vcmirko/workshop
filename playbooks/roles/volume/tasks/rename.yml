@@ -1,0 +1,19 @@
+---
+- set_fact:
+    auth: &auth
+      hostname: "{{ netapp_hostname }}"
+      username: "{{ netapp_username }}"
+      password: "{{ netapp_password }}"
+      https: true
+      validate_certs: false
+    task_description: "Renaming volume {{ volume_name }}"
+
+- name: "{{ task_description }}"
+  netapp.ontap.na_ontap_volume:
+    state: present
+    vserver:                 "{{ svm_name }}"    
+    from_name:               "{{ volume_name }}"
+    name:                    "{{ volume_new_name }}"
+    <<: *auth
+  register: created_volume
+  when: not volume_skip

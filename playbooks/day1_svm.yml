@@ -1,0 +1,35 @@
+---
+- name: "Day 1 - Create Svm"
+  hosts: localhost
+  become: false
+  gather_facts: false
+  vars_files:
+    - "vars/credentials.yml"
+    - "vars/defaults.yml"
+    - "vars/overrides.yml"
+
+  roles:
+    - { role: facts, qtask: credentials }  
+    # - { role: ipspace, qtask: facts }
+    # - { role: ipspace, qtask: create }  
+    # - { role: broadcast_domain, qtask: facts }
+    # - { role: broadcast_domain, qtask: create }     
+    # - { role: vlan, qtask: facts }
+    # - { role: vlan, qtask: create }          
+    - { role: svm, qtask: facts }
+    - { role: svm, qtask: create_min }    
+    - { role: svm, qtask: create_cifs }
+    # - { role: users, qtask: facts }
+    # - { role: users, qtask: create, qdesc: Add snapdrive user }    
+    # - { role: nis, qtask: facts }
+    # - { role: nis, qtask: create }        
+    # - { role: name_service_switch, qtask: facts }
+    # - { role: name_service_switch, qtask: create }       
+    # - { role: export_policy, qtask: facts }
+    # - { role: export_policy, qtask: create }  
+    # - { role: security_certificate, qtask: facts }
+    # - { role: security_certificate, qtask: renew }       
+    # - { role: cifs_local_group, qtask: facts }
+    # - { role: cifs_local_group, qtask: add }                
+    - { role: aiqum, qtask: facts }
+    - { role: aiqum, qtask: rediscover }
